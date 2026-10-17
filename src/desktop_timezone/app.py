@@ -3,6 +3,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -19,6 +20,8 @@ from .native_timezone import (
 from .profiles import PROFILES, detect_executable
 from .taskbar_clock import TaskbarClock
 from .tray import TrayIcon
+
+REPOSITORY_URL = "https://github.com/ifzc/ClaudeBuddy"
 
 LABELS = {
     "北京时间（UTC+8）": "Asia/Shanghai",
@@ -359,6 +362,7 @@ class App:
         assets = Path(__file__).with_name("assets")
         root.iconbitmap(default=str(assets / "claudebuddy.ico"))
         self.brand_icon = tk.PhotoImage(file=str(assets / "claudebuddy.png")).subsample(8, 8)
+        self.github_icon = tk.PhotoImage(file=str(assets / "github.png"))
         self.events = queue.Queue()
         self.tray = TrayIcon(root, lambda action: self.events.put((None, {"event": action})))
         self.config_path = config_path()
@@ -372,13 +376,31 @@ class App:
         root.minsize(620, 470)
         outer = ttk.Frame(root, padding=20)
         outer.pack(fill="both", expand=True)
+        header = ttk.Frame(outer)
+        header.pack(fill="x")
         ttk.Label(
-            outer,
+            header,
             text=" ClaudeBuddy",
             image=self.brand_icon,
             compound="left",
             font=("Microsoft YaHei UI", 17, "bold"),
-        ).pack(anchor="w")
+        ).pack(side="left")
+        style = ttk.Style(root)
+        style.layout(
+            "GitHub.TButton",
+            [("Button.padding", {"children": [("Button.label", {"sticky": "nswe"})]})],
+        )
+        self.github_button = ttk.Button(
+            header,
+            text="GitHub",
+            image=self.github_icon,
+            compound="none",
+            style="GitHub.TButton",
+            padding=4,
+            cursor="hand2",
+            command=self.open_repository,
+        )
+        self.github_button.pack(side="right")
         ttk.Label(outer, text="飞书、微信和任务栏时钟可分别设置。电脑系统时区保持原样。").pack(
             anchor="w", pady=(8, 16)
         )
@@ -404,6 +426,10 @@ class App:
         ).pack(anchor="w", pady=(12, 0))
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
+
+    def open_repository(self):
+        if not webbrowser.open_new_tab(REPOSITORY_URL):
+            messagebox.showerror("无法打开 GitHub", "请在浏览器中访问：\n" + REPOSITORY_URL)
 
     def save_config(self):
         save_config(self.config_path, self.config)

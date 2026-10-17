@@ -3,6 +3,10 @@
 The original code in this repository is provided under the MIT license.
 Dependency licenses remain separate.
 
+- **GitHub Octicons** — the GitHub button uses the `mark-github` icon, distributed
+  under the MIT license. The upstream license text is preserved in
+  [licenses/Octicons-LICENSE.txt](licenses/Octicons-LICENSE.txt).
+  Source: <https://github.com/primer/octicons>.
 - **Frida 17.24.0** — runtime instrumentation dependency. Distributed under the
   wxWindows Library Licence 3.1, including its binary distribution exception.
   The upstream license text is preserved in [licenses/Frida-COPYING.txt](licenses/Frida-COPYING.txt).
