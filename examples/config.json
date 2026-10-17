@@ -6,5 +6,6 @@
     "weixin": {
       "timeZone": "Asia/Shanghai"
     }
-  }
+  },
+  "taskbar": { "timeZone": "Asia/Shanghai", "enabled": false }
 }

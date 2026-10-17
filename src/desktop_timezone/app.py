@@ -17,6 +17,7 @@ from .native_timezone import (
     zone_config,
 )
 from .profiles import PROFILES, detect_executable
+from .taskbar_clock import TaskbarClock
 from .tray import TrayIcon
 
 LABELS = {
@@ -223,6 +224,116 @@ class AppPanel:
                 self.combo.configure(state="readonly")
 
 
+class TaskbarPanel:
+    def __init__(self, owner, parent):
+        self.owner = owner
+        self.config = owner.config["taskbar"]
+        self.controller = None
+        self.busy = False
+        self.failed = False
+        frame = ttk.Frame(parent, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="任务栏时钟时区", font=("Microsoft YaHei UI", 12, "bold")).pack(
+            anchor="w"
+        )
+        self.zone_label = tk.StringVar(
+            value=next(k for k, v in LABELS.items() if v == self.config["timeZone"])
+        )
+        self.combo = ttk.Combobox(
+            frame,
+            textvariable=self.zone_label,
+            values=list(LABELS),
+            state="readonly",
+            font=("Microsoft YaHei UI", 11),
+        )
+        self.combo.pack(fill="x", pady=(8, 16))
+        self.status = tk.StringVar(value="未启用：当前显示 Windows 原来的任务栏时钟。")
+        ttk.Label(frame, textvariable=self.status, wraplength=550).pack(anchor="w")
+        ttk.Label(
+            frame,
+            text="在主屏任务栏原时钟的位置显示所选时区的时间和日期。\n"
+            "点击时钟仍可打开 Windows 日历；日历面板保持系统时区。\n\n"
+            "无需重启资源管理器。关闭设置窗口后会继续在托盘运行，\n"
+            "再次打开工具会恢复已启用的任务栏时钟。",
+            wraplength=550,
+            foreground="#555555",
+            justify="left",
+        ).pack(anchor="w", pady=16, fill="both", expand=True)
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x")
+        self.start_button = ttk.Button(buttons, text="应用任务栏时区", command=self.start)
+        self.start_button.pack(side="left")
+        self.stop_button = ttk.Button(
+            buttons, text="关闭独立时钟", command=self.stop, state="disabled"
+        )
+        self.stop_button.pack(side="right")
+        if self.config["enabled"]:
+            owner.root.after(150, self.start)
+
+    def emit(self, event):
+        self.owner.events.put(("taskbar", event))
+
+    def save(self):
+        try:
+            self.owner.save_config()
+            return True
+        except OSError:
+            messagebox.showerror("配置保存失败", "请将整个文件夹放在有写入权限的位置再运行。")
+            return False
+
+    def start(self):
+        if self.busy:
+            return
+        previous = self.config.copy()
+        self.config.update(timeZone=LABELS[self.zone_label.get()], enabled=True)
+        if not self.save():
+            self.config.update(previous)
+            return
+        if self.controller:
+            self.controller.zone = self.config["timeZone"]
+            self.status.set("已启用：" + self.config["timeZone"] + " · Windows 系统时区未修改")
+            return
+        self.failed = False
+        self.busy = True
+        self.start_button.configure(state="disabled")
+        self.stop_button.configure(state="normal")
+        self.status.set("正在定位主屏任务栏时钟……")
+        self.controller = TaskbarClock(self.config["timeZone"], self.emit)
+        self.controller.start()
+
+    def stop(self):
+        if not self.controller:
+            return
+        previous = self.config["enabled"]
+        self.config["enabled"] = False
+        if not self.save():
+            self.config["enabled"] = previous
+            return
+        self.busy = True
+        self.start_button.configure(state="disabled")
+        self.stop_button.configure(state="disabled")
+        self.controller.stop()
+
+    def handle(self, event):
+        if event["event"] == "ready":
+            self.busy = False
+            self.start_button.configure(state="normal")
+            self.status.set("已启用：" + self.config["timeZone"] + " · Windows 系统时区未修改")
+        elif event["event"] == "failed":
+            self.failed = True
+            self.status.set("启用失败：" + event["error"])
+        elif event["event"] == "stopped":
+            self.controller = None
+            self.busy = False
+            self.start_button.configure(state="normal")
+            self.stop_button.configure(state="disabled")
+            if self.failed:
+                self.config["enabled"] = False
+                self.save()
+            else:
+                self.status.set("已关闭独立时钟，显示 Windows 原来的任务栏时间。")
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -234,7 +345,7 @@ class App:
         except (OSError, ValueError) as error:
             self.config = default_config()
             messagebox.showwarning("配置读取失败", "已使用默认北京时间。\n" + str(error))
-        root.title("桌面应用独立时区 · 飞书 + 微信")
+        root.title("桌面独立时区 · 飞书 + 微信 + 任务栏")
         root.geometry("660x505")
         root.minsize(620, 470)
         outer = ttk.Frame(root, padding=20)
@@ -242,7 +353,7 @@ class App:
         ttk.Label(
             outer, text="让每个应用使用自己的时区", font=("Microsoft YaHei UI", 17, "bold")
         ).pack(anchor="w")
-        ttk.Label(outer, text="飞书和微信可分别设置。电脑系统时区保持原样。").pack(
+        ttk.Label(outer, text="飞书、微信和任务栏时钟可分别设置。电脑系统时区保持原样。").pack(
             anchor="w", pady=(8, 16)
         )
         notebook = ttk.Notebook(outer)
@@ -252,9 +363,14 @@ class App:
             tab = ttk.Frame(notebook)
             notebook.add(tab, text="  " + profile["label"] + "  ")
             self.panels[key] = AppPanel(self, key, tab)
+        tab = ttk.Frame(notebook)
+        notebook.add(tab, text="  任务栏时钟  ")
+        self.panels["taskbar"] = TaskbarPanel(self, tab)
         # Keep Feishu first; focus Weixin for a Weixin-only invocation.
         if "--weixin" in sys.argv:
             notebook.select(1)
+        if "--taskbar" in sys.argv:
+            notebook.select(2)
         ttk.Label(
             outer,
             text="实验版 · 关闭窗口后在托盘继续运行 · 恢复普通模式请手动操作",

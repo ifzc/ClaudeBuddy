@@ -83,7 +83,7 @@ class TrayIcon:
         self.data.flags = 1 | 2 | 4  # message, icon, tooltip
         self.data.callback_message = self.MESSAGE
         self.data.icon = self.user.LoadIconW(None, ctypes.c_void_p(32512))
-        self.data.tip = "独立时区 · 飞书 + 微信（点击打开设置）"
+        self.data.tip = "独立时区 · 飞书 + 微信 + 任务栏（点击打开设置）"
 
     def show(self):
         self._install_callback()
