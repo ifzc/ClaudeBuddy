@@ -248,6 +248,13 @@ class TaskbarPanel:
         )
         self.combo.pack(fill="x", pady=(8, 16))
         self.status = tk.StringVar(value="未启用：当前显示 Windows 原来的任务栏时钟。")
+        self.show_date = tk.BooleanVar(value=self.config["showDate"])
+        ttk.Checkbutton(
+            frame,
+            text="显示日期（取消后只显示时间）",
+            variable=self.show_date,
+            command=self.change_date_visibility,
+        ).pack(anchor="w", pady=(0, 12))
         ttk.Label(frame, textvariable=self.status, wraplength=550).pack(anchor="w")
         ttk.Label(
             frame,
@@ -272,6 +279,16 @@ class TaskbarPanel:
 
     def emit(self, event):
         self.owner.events.put(("taskbar", event))
+
+    def change_date_visibility(self):
+        previous = self.config["showDate"]
+        self.config["showDate"] = self.show_date.get()
+        if not self.save():
+            self.config["showDate"] = previous
+            self.show_date.set(previous)
+            return
+        if self.controller:
+            self.controller.show_date = self.config["showDate"]
 
     def save(self):
         try:
@@ -298,7 +315,9 @@ class TaskbarPanel:
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.status.set("正在定位主屏任务栏时钟……")
-        self.controller = TaskbarClock(self.config["timeZone"], self.emit)
+        self.controller = TaskbarClock(
+            self.config["timeZone"], self.emit, show_date=self.config["showDate"]
+        )
         self.controller.start()
 
     def stop(self):

@@ -39,6 +39,7 @@
 2. 主屏右下角原时钟位置显示该时区的 24 小时时间和月/日；选择另一时区后再次应用即可更新，无需重启 Explorer。
 3. 关闭设置窗口后继续在托盘运行。点击“关闭独立时钟”会立即露出原来的 Windows 时钟。
 4. 启用状态会保存，再次打开工具时自动恢复。此功能不会添加 Windows 开机启动项。
+5. v0.2.1 新增“显示日期”开关：取消勾选后只显示居中的时间，重新勾选显示时间和日期。切换立即生效并自动保存。
 
 这是覆盖在原时钟上方的独立显示窗口，鼠标点击会穿透到原时钟。展开的 Windows 日历、通知、文件时间和系统时区保持原样。当前仅支持能识别的 Windows 11 主屏任务栏布局，已验证 Windows 11 26H2（26300.9711）；其他布局识别失败时显示错误，不猜测覆盖位置。多屏的副屏时钟暂不覆盖。全屏窗口覆盖时钟区域时隐藏显示层，任务栏再次可见后继续显示。外观使用简单的深色或浅色背景，不复制任务栏的透明材质。
 
@@ -64,7 +65,7 @@ py -3.12 -m venv .venv
     "feishu": { "timeZone": "Asia/Shanghai" },
     "weixin": { "timeZone": "America/Phoenix" }
   },
-  "taskbar": { "timeZone": "Asia/Shanghai", "enabled": false }
+  "taskbar": { "timeZone": "Asia/Shanghai", "enabled": false, "showDate": true }
 }
 ```
 

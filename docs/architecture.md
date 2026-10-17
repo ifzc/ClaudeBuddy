@@ -34,4 +34,4 @@ GUI 在后台线程执行启动和恢复，通过队列更新界面。恢复操�
 
 时间使用 `GetSystemTime` 取得 UTC，再以明确的 `DYNAMIC_TIME_ZONE_INFORMATION` 调用 `SystemTimeToTzSpecificLocalTimeEx` 转换；从未调用修改系统时间或时区的接口。独立时钟停止时销毁窗口，Windows 原时钟始终在下面正常运行。会话内的命名互斥体防止多个工具实例同时覆盖时钟。
 
-`taskbar.timeZone` 和 `taskbar.enabled` 与两应用的配置独立保存。启用状态使设置窗口关闭时继续运行，下次手动启动工具时自动恢复；不会注册系统开机启动。独立时钟仅显示主屏时间与月/日，系统日历面板、通知及副屏时钟不在覆盖范围。
+`taskbar.timeZone`、`taskbar.enabled` 和 `taskbar.showDate` 与两应用的配置独立保存。启用状态使设置窗口关闭时继续运行，下次手动启动工具时自动恢复；不会注册系统开机启动。`showDate` 默认开启，兼容旧版配置；关闭后时间独占整个显示区域并垂直居中，切换触发下一次绘制。独立时钟仅显示主屏时间与可选月/日，系统日历面板、通知及副屏时钟不在覆盖范围。

@@ -7,5 +7,5 @@
       "timeZone": "Asia/Shanghai"
     }
   },
-  "taskbar": { "timeZone": "Asia/Shanghai", "enabled": false }
+  "taskbar": { "timeZone": "Asia/Shanghai", "enabled": false, "showDate": true }
 }

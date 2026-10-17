@@ -139,8 +139,9 @@ class PaintStruct(ctypes.Structure):
 class TaskbarClock:
     """Own a display window on a dedicated COM/message-loop thread."""
 
-    def __init__(self, zone, report):
+    def __init__(self, zone, report, *, show_date=True):
         self.zone, self.report = zone, report
+        self.show_date = show_date
         self.window = None
         self.thread = None
         self.stopping = threading.Event()
@@ -313,7 +314,9 @@ class TaskbarClock:
         if self.clock.zone != self.zone:
             self.clock = ZoneClock(self.zone)
         now = self.clock.now()
-        text = (now.strftime("%H:%M"), f"{now.month}/{now.day}")
+        text = (now.strftime("%H:%M"),)
+        if self.show_date:
+            text += (f"{now.month}/{now.day}",)
         if text != self.text:
             self.text = text
             self.user.SetWindowTextW(
@@ -403,16 +406,19 @@ class TaskbarClock:
             self.user.GetClientRect(window, ctypes.byref(rect))
             self.user.FillRect(dc, ctypes.byref(rect), brush)
             dpi = self.user.GetDpiForWindow(window) or 96
-            size = min(round(12 * dpi / 96), max(9, rect.bottom // 2 - 2))
+            line_count = max(1, len(self.text))
+            size = min(round(12 * dpi / 96), max(9, rect.bottom // line_count - 2))
             font = self.gdi.CreateFontW(-size, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI")
             previous = self.gdi.SelectObject(dc, font)
             self.gdi.SetTextColor(dc, 0x161616 if light else 0xFFFFFF)
             self.gdi.SetBkMode(dc, 1)
-            middle = rect.bottom // 2
-            for line, bounds in zip(
-                self.text,
-                [w.RECT(0, 0, rect.right, middle), w.RECT(0, middle, rect.right, rect.bottom)],
-            ):
+            for index, line in enumerate(self.text):
+                bounds = w.RECT(
+                    0,
+                    rect.bottom * index // line_count,
+                    rect.right,
+                    rect.bottom * (index + 1) // line_count,
+                )
                 self.user.DrawTextW(dc, line, -1, ctypes.byref(bounds), 0x825)
         finally:
             if previous:
