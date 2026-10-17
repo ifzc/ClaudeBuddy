@@ -63,6 +63,14 @@ def main():
             point = w.POINT((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
             assert user.WindowFromPoint(point) != controller.window
             assert controller.clock.zone == "Asia/Shanghai"
+            assert len(controller.text) == 2
+            panel.show_date.set(False)
+            panel.change_date_visibility()
+            wait_for(window, lambda: len(controller.text) == 1)
+            assert panel.config["showDate"] is False
+            panel.show_date.set(True)
+            panel.change_date_visibility()
+            wait_for(window, lambda: len(controller.text) == 2)
 
             app.close()
             window.update()
@@ -85,6 +93,7 @@ def main():
                         "clickThrough": True,
                         "closeKeepsClock": True,
                         "liveZoneChange": True,
+                        "liveDateToggle": True,
                         "stopRemovesOverlay": True,
                         "systemZoneUnchanged": True,
                     }

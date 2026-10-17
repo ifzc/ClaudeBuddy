@@ -10,7 +10,7 @@ from .profiles import PROFILES, ZONES
 def default_config():
     return {
         "apps": {key: {"timeZone": "Asia/Shanghai"} for key in PROFILES},
-        "taskbar": {"timeZone": "Asia/Shanghai", "enabled": False},
+        "taskbar": {"timeZone": "Asia/Shanghai", "enabled": False, "showDate": True},
     }
 
 
@@ -44,11 +44,14 @@ def load_config(path):
         raise ValueError("taskbar must be a JSON object")
     zone = taskbar.get("timeZone", "Asia/Shanghai")
     enabled = taskbar.get("enabled", False)
+    show_date = taskbar.get("showDate", True)
     if not isinstance(zone, str) or zone not in ZONES:
         raise ValueError("Unsupported time zone in taskbar")
     if not isinstance(enabled, bool):
         raise ValueError("taskbar.enabled must be a boolean")
-    config["taskbar"] = {"timeZone": zone, "enabled": enabled}
+    if not isinstance(show_date, bool):
+        raise ValueError("taskbar.showDate must be a boolean")
+    config["taskbar"] = {"timeZone": zone, "enabled": enabled, "showDate": show_date}
     return config
 
 

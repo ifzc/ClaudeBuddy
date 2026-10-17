@@ -39,6 +39,7 @@ class ConfigurationTests(unittest.TestCase):
             {"taskbar": {"timeZone": "Missing/Zone"}},
             {"taskbar": {"timeZone": []}},
             {"taskbar": {"enabled": "false"}},
+            {"taskbar": {"showDate": "false"}},
         ]:
             with self.subTest(value=value):
                 self.write(value)
@@ -53,10 +54,13 @@ class ConfigurationTests(unittest.TestCase):
         self.assertFalse(self.path.with_suffix(".json.tmp").exists())
 
     def test_taskbar_setting_survives_app_configuration_round_trip(self):
-        self.write({"taskbar": {"timeZone": "America/New_York", "enabled": True}})
+        self.write(
+            {"taskbar": {"timeZone": "America/New_York", "enabled": True, "showDate": False}}
+        )
         config = load_config(self.path)
         config["apps"]["weixin"]["timeZone"] = "UTC"
         save_config(self.path, config)
         self.assertEqual(
-            load_config(self.path)["taskbar"], {"timeZone": "America/New_York", "enabled": True}
+            load_config(self.path)["taskbar"],
+            {"timeZone": "America/New_York", "enabled": True, "showDate": False},
         )
