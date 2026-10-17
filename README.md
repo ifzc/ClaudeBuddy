@@ -1,6 +1,6 @@
-# Desktop Timezone · 飞书 / 微信 / 任务栏独立时区
+# ClaudeBuddy · 飞书 / 微信 / 任务栏独立时区
 
-让 Windows 桌面版飞书、微信和主屏任务栏时钟分别显示指定时区，保留电脑原来的系统时区。
+ClaudeBuddy 让 Windows 桌面版飞书、微信和主屏任务栏时钟分别显示指定时区，保留电脑原来的系统时区。
 
 这是基于进程内时区覆盖的实验工具，不是飞书或腾讯官方插件。已经在 Windows 11 x64、飞书 **8.2.0.73** 和微信 **4.1.7.59** 上验证聊天时间显示。
 
@@ -23,9 +23,9 @@
 
 ### 独立可执行文件
 
-可以自行构建，也可以在 [Actions](https://github.com/ifzc/desktop-timezone/actions) 中打开成功的 Windows 构建，下载 `DesktopTimezone-windows-x64` artifact 并完整解压。GitHub 下载 Actions artifact 可能要求登录。程序未做代码签名。
+可以自行构建，也可以在 [Actions](https://github.com/ifzc/ClaudeBuddy/actions) 中打开成功的 Windows 构建，下载 `ClaudeBuddy-windows-x64` artifact 并完整解压。GitHub 下载 Actions artifact 可能要求登录。程序未做代码签名。
 
-1. 运行 `DesktopTimezone.exe`，选择“飞书”或“微信”标签页。
+1. 运行 `ClaudeBuddy.exe`，选择“飞书”或“微信”标签页。
 2. 保存该应用的草稿、结束通话，并从系统托盘完全退出该应用。
 3. 选择时区，点击“应用时区并启动”。如出现登录界面，请自行完成登录。
 4. 可以点击 × 关闭设置窗口，工具会收起到系统托盘继续维护时区，不会重启应用或自动恢复时区。点击托盘图标可重新打开设置。
@@ -54,7 +54,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m desktop_timezone
 ```
 
-也可运行虚拟环境中的 `desktop-timezone.exe`。加 `--weixin` 或 `--taskbar` 可默认显示对应标签页。
+也可运行虚拟环境中的 `claudebuddy.exe`。加 `--weixin` 或 `--taskbar` 可默认显示对应标签页。旧的 `desktop-timezone` 命令保留为兼容入口。
 
 ## 配置
 

@@ -1,3 +1,3 @@
-"""Independent display time zones for Windows desktop applications."""
+"""ClaudeBuddy: independent display time zones for Windows applications."""
 
-__version__ = "0.2.2"
+__version__ = "0.3.0"
