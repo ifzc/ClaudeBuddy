@@ -348,11 +348,14 @@ class TaskbarClock:
                     rect = None
         if rect:
             left, top, right, bottom = rect
+            # Inset the whole overlay so its background leaves taskbar edges visible.
+            top += 2
+            bottom -= 2
             if not self.user.SetWindowPos(
                 self.window, ctypes.c_void_p(-1), left, top, right - left, bottom - top, 0x50
             ):
                 raise ctypes.WinError(ctypes.get_last_error())
-            self.visible, self.rectangle = True, rect
+            self.visible, self.rectangle = True, (left, top, right, bottom)
             if not self.ready:
                 self.ready = True
                 self.report({"event": "ready"})
