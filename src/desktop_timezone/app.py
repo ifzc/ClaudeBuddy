@@ -17,6 +17,7 @@ from .native_timezone import (
     zone_config,
 )
 from .profiles import PROFILES, detect_executable
+from .tray import TrayIcon
 
 LABELS = {
     "北京时间（UTC+8）": "Asia/Shanghai",
@@ -212,7 +213,6 @@ class AppPanel:
             self.combo.configure(state="readonly")
         elif kind == "failed":
             self.busy = False
-            self.owner.closing = False
             self.status.set("操作失败，请完全退出" + self.label + "后用原快捷方式启动。")
             self.append(event["error"])
             messagebox.showerror(self.label + "操作失败", event["error"])
@@ -227,7 +227,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.events = queue.Queue()
-        self.closing = False
+        self.tray = TrayIcon(root, lambda action: self.events.put((None, {"event": action})))
         self.config_path = config_path()
         try:
             self.config = load_config(self.config_path)
@@ -257,7 +257,7 @@ class App:
             notebook.select(1)
         ttk.Label(
             outer,
-            text="实验版 · 启用期间请保持本窗口打开 · 恢复普通模式需要重启对应应用",
+            text="实验版 · 关闭窗口后在托盘继续运行 · 恢复普通模式请手动操作",
             foreground="#666666",
         ).pack(anchor="w", pady=(12, 0))
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -267,29 +267,47 @@ class App:
         save_config(self.config_path, self.config)
 
     def close(self):
-        if self.closing or any(p.busy for p in self.panels.values()):
+        if any(p.controller or p.busy for p in self.panels.values()):
+            try:
+                self.tray.show()
+            except OSError:
+                # Keep sessions alive even if Explorer cannot host a tray icon.
+                self.root.iconify()
+            else:
+                self.root.withdraw()
             return
-        active = [p for p in self.panels.values() if p.controller]
-        if not active:
-            self.root.destroy()
-            return
-        names = "、".join(p.label for p in active)
-        if not messagebox.askyesno(
-            "关闭并恢复普通启动",
-            "关闭工具会重启" + names + "，恢复原有时区。\n请先保存草稿并结束通话。现在继续吗？",
-        ):
-            return
-        self.closing = True
-        for panel in active:
-            panel.stop(confirmed=True)
+        self.tray.close()
+        self.root.destroy()
+
+    def show(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.tray.remove()
+
+    def show_tray_menu(self):
+        self.tray_menu = tk.Menu(self.root, tearoff=False)
+        self.tray_menu.add_command(label="打开时区设置", command=self.show)
+        self.tray_menu.add_separator()
+        active = any(p.controller or p.busy for p in self.panels.values())
+        self.tray_menu.add_command(
+            label="维护时区中 · 退出前请手动恢复" if active else "退出工具",
+            command=self.close,
+            state="disabled" if active else "normal",
+        )
+        # A native foreground owner keeps the popup dismissible when clicked away.
+        self.tray.user.SetForegroundWindow(self.tray.window)
+        self.tray_menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
 
     def poll(self):
         while not self.events.empty():
             key, event = self.events.get()
-            self.panels[key].handle(event)
-        if self.closing and all(not p.busy and not p.controller for p in self.panels.values()):
-            self.root.destroy()
-            return
+            if key is None:
+                if event["event"] == "show":
+                    self.show()
+                elif event["event"] == "menu":
+                    self.show_tray_menu()
+            else:
+                self.panels[key].handle(event)
         self.root.after(100, self.poll)
 
 

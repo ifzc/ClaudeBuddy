@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "desktop-timezone"
-version = "0.1.0"
+version = "0.1.1"
 description = "Independent display time zones for Feishu and Weixin on Windows"
 readme = "README.md"
 requires-python = ">=3.12"

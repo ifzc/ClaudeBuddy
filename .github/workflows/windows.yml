@@ -30,6 +30,8 @@ jobs:
         run: python -m unittest discover -s tests -p "test_*.py" -v
       - name: Native time zone integration tests
         run: python tests/integration/selftest.py
+      - name: Window close preserves the active time zone
+        run: python tests/integration/window_lifecycle.py
       - name: Build Python distributions
         run: python -m build
       - name: Build standalone Windows executable

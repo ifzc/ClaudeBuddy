@@ -27,10 +27,10 @@
 1. 运行 `DesktopTimezone.exe`，选择“飞书”或“微信”标签页。
 2. 保存该应用的草稿、结束通话，并从系统托盘完全退出该应用。
 3. 选择时区，点击“应用时区并启动”。如出现登录界面，请自行完成登录。
-4. 使用期间保持工具窗口打开。
+4. 可以点击 × 关闭设置窗口，工具会收起到系统托盘继续维护时区，不会重启应用或自动恢复时区。点击托盘图标可重新打开设置。
 5. 更换时区或停止使用时，点击对应的“恢复普通启动”。确认后会退出并重新打开该应用，以清除进程内时区缓存。
 
-关闭工具会询问是否恢复它管理的应用。如果工具意外退出，请从托盘完全退出受影响的应用，再通过原快捷方式启动。
+没有管理中的应用时，关闭窗口会直接退出工具。维护时区期间，关闭窗口只收起到托盘；若系统托盘不可用，则最小化到任务栏。需要结束后台运行时，先手动恢复对应应用，再关闭工具。意外终止后台进程后，请完全退出受影响的应用并通过原快捷方式启动。
 
 ### 从源码运行
 
@@ -66,6 +66,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
 .\.venv\Scripts\python.exe tests/integration/selftest.py
+.\.venv\Scripts\python.exe tests/integration/window_lifecycle.py
 .\scripts\build.ps1 -Python .\.venv\Scripts\python.exe
 ```
 
@@ -78,6 +79,7 @@ src/desktop_timezone/
   app.py                 界面与应用生命周期
   configuration.py       配置校验和保存
   profiles.py            应用范围、路径和时区映射
+  tray.py                Windows 系统托盘与设置窗口恢复
   native_timezone.py     原生进程控制与 Frida 会话
   agent.js               Windows / ICU 时区接口覆盖
 tests/                   配置和进程范围测试
