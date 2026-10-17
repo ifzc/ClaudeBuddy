@@ -11,6 +11,10 @@ Dependency licenses remain separate.
 - **PyInstaller 6.22.3** — standalone executable build tool, under GPL-2.0-or-later
   with a distribution exception for generated applications. Upstream source and
   licensing: <https://github.com/pyinstaller/pyinstaller>.
+- **comtypes 1.4.17** — Windows COM and UI Automation bindings, distributed under
+  the MIT license. The upstream license text is preserved in
+  [licenses/comtypes-LICENSE.txt](licenses/comtypes-LICENSE.txt).
+  Source: <https://github.com/enthought/comtypes>.
 - **Python and Tcl/Tk** — used by the runtime and GUI. Their upstream licenses
   apply to runtime components included by PyInstaller. See
   <https://docs.python.org/3/license.html> and <https://www.tcl.tk/software/tcltk/license.html>.

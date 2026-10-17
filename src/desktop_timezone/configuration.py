@@ -8,7 +8,10 @@ from .profiles import PROFILES, ZONES
 
 
 def default_config():
-    return {"apps": {key: {"timeZone": "Asia/Shanghai"} for key in PROFILES}}
+    return {
+        "apps": {key: {"timeZone": "Asia/Shanghai"} for key in PROFILES},
+        "taskbar": {"timeZone": "Asia/Shanghai", "enabled": False},
+    }
 
 
 def config_path():
@@ -36,6 +39,16 @@ def load_config(path):
             if not isinstance(executable, str) or not executable.strip():
                 raise ValueError(f"apps.{key}.executable must be a nonempty path string")
             config["apps"][key]["executable"] = executable
+    taskbar = raw.get("taskbar", {})
+    if not isinstance(taskbar, dict):
+        raise ValueError("taskbar must be a JSON object")
+    zone = taskbar.get("timeZone", "Asia/Shanghai")
+    enabled = taskbar.get("enabled", False)
+    if not isinstance(zone, str) or zone not in ZONES:
+        raise ValueError("Unsupported time zone in taskbar")
+    if not isinstance(enabled, bool):
+        raise ValueError("taskbar.enabled must be a boolean")
+    config["taskbar"] = {"timeZone": zone, "enabled": enabled}
     return config
 
 
