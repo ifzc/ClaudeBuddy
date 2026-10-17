@@ -242,6 +242,7 @@ class TaskbarClock:
         registered = initialized = False
         try:
             self._bind()
+            # Preserve the legacy name so old and new builds cannot overlap clocks.
             mutex = self.kernel.CreateMutexW(None, False, "Local\\DesktopTimezone.TaskbarClock")
             if not mutex:
                 raise ctypes.WinError(ctypes.get_last_error())
@@ -266,7 +267,7 @@ class TaskbarClock:
             self.window = self.user.CreateWindowExW(
                 0x080800A0,
                 self.class_name,
-                "独立任务栏时钟",
+                "ClaudeBuddy 时钟",
                 0x80000000,
                 0,
                 0,
@@ -320,7 +321,7 @@ class TaskbarClock:
         if text != self.text:
             self.text = text
             self.user.SetWindowTextW(
-                self.window, f"独立任务栏时钟 · {now:%Y-%m-%d %H:%M} · {self.zone}"
+                self.window, f"ClaudeBuddy 时钟 · {now:%Y-%m-%d %H:%M} · {self.zone}"
             )
             self.user.InvalidateRect(self.window, None, False)
         rect = self.locator.locate()

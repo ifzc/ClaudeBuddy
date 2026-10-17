@@ -40,10 +40,10 @@ jobs:
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: DesktopTimezone-windows-x64
+          name: ClaudeBuddy-windows-x64
           path: build/windows/
       - name: Upload Python distributions
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-timezone-python
+          name: ClaudeBuddy-python
           path: dist/*

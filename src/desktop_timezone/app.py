@@ -356,6 +356,9 @@ class TaskbarPanel:
 class App:
     def __init__(self, root):
         self.root = root
+        assets = Path(__file__).with_name("assets")
+        root.iconbitmap(default=str(assets / "claudebuddy.ico"))
+        self.brand_icon = tk.PhotoImage(file=str(assets / "claudebuddy.png")).subsample(8, 8)
         self.events = queue.Queue()
         self.tray = TrayIcon(root, lambda action: self.events.put((None, {"event": action})))
         self.config_path = config_path()
@@ -364,13 +367,17 @@ class App:
         except (OSError, ValueError) as error:
             self.config = default_config()
             messagebox.showwarning("配置读取失败", "已使用默认北京时间。\n" + str(error))
-        root.title("桌面独立时区 · 飞书 + 微信 + 任务栏")
+        root.title("ClaudeBuddy · 桌面独立时区")
         root.geometry("660x505")
         root.minsize(620, 470)
         outer = ttk.Frame(root, padding=20)
         outer.pack(fill="both", expand=True)
         ttk.Label(
-            outer, text="让每个应用使用自己的时区", font=("Microsoft YaHei UI", 17, "bold")
+            outer,
+            text=" ClaudeBuddy",
+            image=self.brand_icon,
+            compound="left",
+            font=("Microsoft YaHei UI", 17, "bold"),
         ).pack(anchor="w")
         ttk.Label(outer, text="飞书、微信和任务栏时钟可分别设置。电脑系统时区保持原样。").pack(
             anchor="w", pady=(8, 16)
@@ -448,7 +455,7 @@ class App:
 
 def main():
     if sys.platform != "win32":
-        raise SystemExit("Desktop Timezone requires Windows.")
+        raise SystemExit("ClaudeBuddy requires Windows.")
     root = tk.Tk()
     App(root)
     root.mainloop()

@@ -16,18 +16,20 @@ $WorkDirectory = (Resolve-Path -LiteralPath $WorkDirectory).Path
 if ($LASTEXITCODE -ne 0) { throw 'Generating Windows accessibility bindings failed.' }
 
 & $Python -m PyInstaller --noconfirm --clean --onefile --windowed `
-    --name DesktopTimezone --paths (Join-Path $projectRoot 'src') `
+    --name ClaudeBuddy --paths (Join-Path $projectRoot 'src') `
+    --version-file (Join-Path $PSScriptRoot 'windows-version-info.txt') `
+    --icon (Join-Path $projectRoot 'src/desktop_timezone/assets/claudebuddy.ico') `
     --collect-all frida --collect-data desktop_timezone `
     --hidden-import comtypes.gen.UIAutomationClient `
     --distpath $OutputDirectory --workpath (Join-Path $WorkDirectory 'pyinstaller') `
     --specpath $WorkDirectory (Join-Path $PSScriptRoot 'launch_gui.py')
-if ($LASTEXITCODE -ne 0) { throw 'Building DesktopTimezone failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Building ClaudeBuddy failed.' }
 
 Copy-Item -LiteralPath (Join-Path $projectRoot 'examples\config.json') -Destination $OutputDirectory
 foreach ($name in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {
     Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $OutputDirectory
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'licenses') -Destination $OutputDirectory -Recurse -Force
-Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'DesktopTimezone.exe') -Algorithm SHA256 |
-    ForEach-Object { ($_.Hash.ToLowerInvariant() + '  DesktopTimezone.exe') } |
+Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'ClaudeBuddy.exe') -Algorithm SHA256 |
+    ForEach-Object { ($_.Hash.ToLowerInvariant() + '  ClaudeBuddy.exe') } |
     Set-Content -LiteralPath (Join-Path $OutputDirectory 'SHA256SUMS.txt') -Encoding utf8

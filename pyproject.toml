@@ -3,9 +3,9 @@ requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "desktop-timezone"
-version = "0.2.2"
-description = "Independent display time zones for Feishu, Weixin and the Windows taskbar"
+name = "claudebuddy"
+version = "0.3.0"
+description = "ClaudeBuddy: independent time zones for Feishu, Weixin and the Windows taskbar"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -22,23 +22,25 @@ dependencies = ["frida==17.24.0", "comtypes==1.4.17"]
 
 [project.optional-dependencies]
 dev = ["ruff>=0.14,<1", "build>=1.2,<2"]
-build = ["pyinstaller==6.22.3"]
+build = ["pyinstaller==6.22.3", "Pillow>=11,<13"]
 
 [project.gui-scripts]
+claudebuddy = "desktop_timezone.app:main"
 desktop-timezone = "desktop_timezone.app:main"
 
 [project.scripts]
+claudebuddy-probe = "desktop_timezone.native_timezone:main"
 desktop-timezone-probe = "desktop_timezone.native_timezone:main"
 
 [project.urls]
-Repository = "https://github.com/ifzc/desktop-timezone"
-Issues = "https://github.com/ifzc/desktop-timezone/issues"
+Repository = "https://github.com/ifzc/ClaudeBuddy"
+Issues = "https://github.com/ifzc/ClaudeBuddy/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-desktop_timezone = ["agent.js"]
+desktop_timezone = ["agent.js", "assets/*.ico", "assets/*.png", "assets/*.svg"]
 
 [tool.ruff]
 target-version = "py312"

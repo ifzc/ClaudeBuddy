@@ -244,7 +244,7 @@ class Controller:
 
 def main():
     if sys.platform != "win32":
-        raise SystemExit("Desktop Timezone requires Windows.")
+        raise SystemExit("ClaudeBuddy requires Windows.")
     parser = argparse.ArgumentParser()
     parser.add_argument("--zone", default="Asia/Shanghai", choices=ZONES)
     parser.add_argument("--app", default="feishu", choices=PROFILES)
