@@ -22,7 +22,7 @@ dependencies = ["frida==17.24.0", "comtypes==1.4.17"]
 
 [project.optional-dependencies]
 dev = ["ruff>=0.14,<1", "build>=1.2,<2"]
-build = ["pyinstaller==6.22.3"]
+build = ["pyinstaller==6.22.3", "Pillow>=11,<13"]
 
 [project.gui-scripts]
 claudebuddy = "desktop_timezone.app:main"
@@ -40,7 +40,7 @@ Issues = "https://github.com/ifzc/ClaudeBuddy/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-desktop_timezone = ["agent.js"]
+desktop_timezone = ["agent.js", "assets/*.ico", "assets/*.png", "assets/*.svg"]
 
 [tool.ruff]
 target-version = "py312"

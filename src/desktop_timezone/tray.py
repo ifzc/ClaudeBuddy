@@ -2,6 +2,7 @@
 
 import ctypes
 from ctypes import wintypes as w
+from pathlib import Path
 
 
 class NotificationData(ctypes.Structure):
@@ -34,6 +35,7 @@ class TrayIcon:
         self.callback = None
         self.window = None
         self.previous = None
+        self.custom_icon = None
         self.user = ctypes.WinDLL("user32", use_last_error=True)
         self.shell = ctypes.WinDLL("shell32", use_last_error=True)
         self.user.SetWindowLongPtrW.argtypes = [w.HWND, ctypes.c_int, ctypes.c_ssize_t]
@@ -42,6 +44,17 @@ class TrayIcon:
         self.user.CallWindowProcW.restype = ctypes.c_ssize_t
         self.user.LoadIconW.argtypes = [w.HINSTANCE, ctypes.c_void_p]
         self.user.LoadIconW.restype = w.HICON
+        self.user.LoadImageW.argtypes = [
+            w.HINSTANCE,
+            w.LPCWSTR,
+            w.UINT,
+            ctypes.c_int,
+            ctypes.c_int,
+            w.UINT,
+        ]
+        self.user.LoadImageW.restype = w.HANDLE
+        self.user.DestroyIcon.argtypes = [w.HICON]
+        self.user.DestroyIcon.restype = w.BOOL
         self.user.RegisterWindowMessageW.argtypes = [w.LPCWSTR]
         self.user.RegisterWindowMessageW.restype = w.UINT
         self.user.SetForegroundWindow.argtypes = [w.HWND]
@@ -82,7 +95,10 @@ class TrayIcon:
         self.data.identifier = 1
         self.data.flags = 1 | 2 | 4  # message, icon, tooltip
         self.data.callback_message = self.MESSAGE
-        self.data.icon = self.user.LoadIconW(None, ctypes.c_void_p(32512))
+        self.custom_icon = self.user.LoadImageW(
+            None, str(Path(__file__).with_name("assets") / "claudebuddy.ico"), 1, 16, 16, 0x10
+        )
+        self.data.icon = self.custom_icon or self.user.LoadIconW(None, ctypes.c_void_p(32512))
         self.data.tip = "ClaudeBuddy · 飞书 + 微信 + 任务栏（点击打开设置）"
 
     def show(self):
@@ -102,3 +118,6 @@ class TrayIcon:
         if self.callback is not None:
             self.user.SetWindowLongPtrW(self.window, -4, self.previous)
             self.callback = None
+        if self.custom_icon:
+            self.user.DestroyIcon(self.custom_icon)
+            self.custom_icon = None

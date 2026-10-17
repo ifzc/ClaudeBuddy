@@ -1,6 +1,10 @@
 # ClaudeBuddy · 飞书 / 微信 / 任务栏独立时区
 
+<img src="src/desktop_timezone/assets/claudebuddy.png" alt="ClaudeBuddy 橙色像素小螃蟹" width="80" height="80">
+
 ClaudeBuddy 让 Windows 桌面版飞书、微信和主屏任务栏时钟分别显示指定时区，保留电脑原来的系统时区。
+
+使用 Claude Code 风格的橙色像素小螃蟹图标，覆盖程序文件、窗口、任务栏和系统托盘。图标源文件位于 `src/desktop_timezone/assets/`，可用 `python scripts/generate_icon.py` 重新生成。
 
 这是基于进程内时区覆盖的实验工具，不是飞书或腾讯官方插件。已经在 Windows 11 x64、飞书 **8.2.0.73** 和微信 **4.1.7.59** 上验证聊天时间显示。
 

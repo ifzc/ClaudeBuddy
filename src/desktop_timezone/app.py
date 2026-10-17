@@ -356,6 +356,9 @@ class TaskbarPanel:
 class App:
     def __init__(self, root):
         self.root = root
+        assets = Path(__file__).with_name("assets")
+        root.iconbitmap(default=str(assets / "claudebuddy.ico"))
+        self.brand_icon = tk.PhotoImage(file=str(assets / "claudebuddy.png")).subsample(8, 8)
         self.events = queue.Queue()
         self.tray = TrayIcon(root, lambda action: self.events.put((None, {"event": action})))
         self.config_path = config_path()
@@ -369,9 +372,13 @@ class App:
         root.minsize(620, 470)
         outer = ttk.Frame(root, padding=20)
         outer.pack(fill="both", expand=True)
-        ttk.Label(outer, text="ClaudeBuddy", font=("Microsoft YaHei UI", 17, "bold")).pack(
-            anchor="w"
-        )
+        ttk.Label(
+            outer,
+            text=" ClaudeBuddy",
+            image=self.brand_icon,
+            compound="left",
+            font=("Microsoft YaHei UI", 17, "bold"),
+        ).pack(anchor="w")
         ttk.Label(outer, text="飞书、微信和任务栏时钟可分别设置。电脑系统时区保持原样。").pack(
             anchor="w", pady=(8, 16)
         )

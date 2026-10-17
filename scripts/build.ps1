@@ -18,6 +18,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Generating Windows accessibility bindings fail
 & $Python -m PyInstaller --noconfirm --clean --onefile --windowed `
     --name ClaudeBuddy --paths (Join-Path $projectRoot 'src') `
     --version-file (Join-Path $PSScriptRoot 'windows-version-info.txt') `
+    --icon (Join-Path $projectRoot 'src/desktop_timezone/assets/claudebuddy.ico') `
     --collect-all frida --collect-data desktop_timezone `
     --hidden-import comtypes.gen.UIAutomationClient `
     --distpath $OutputDirectory --workpath (Join-Path $WorkDirectory 'pyinstaller') `
