@@ -1,0 +1,305 @@
+import queue
+import subprocess
+import sys
+import threading
+import tkinter as tk
+from pathlib import Path
+from tkinter import messagebox, ttk
+
+import frida
+
+from .configuration import config_path, default_config, load_config, save_config
+from .native_timezone import (
+    Controller,
+    close_process_watch,
+    open_process_watch,
+    watched_process_is_running,
+    zone_config,
+)
+from .profiles import PROFILES, detect_executable
+
+LABELS = {
+    "北京时间（UTC+8）": "Asia/Shanghai",
+    "亚利桑那时间（UTC-7）": "America/Phoenix",
+    "东京时间（UTC+9）": "Asia/Tokyo",
+    "纽约时间（自动夏令时）": "America/New_York",
+    "洛杉矶时间（自动夏令时）": "America/Los_Angeles",
+    "伦敦时间（自动夏令时）": "Europe/London",
+    "协调世界时（UTC）": "UTC",
+}
+
+
+class AppPanel:
+    def __init__(self, owner, key, parent):
+        self.owner, self.key = owner, key
+        self.label = PROFILES[key]["label"]
+        self.controller = None
+        self.process_handle = None
+        self.busy = False
+        self.verified = set()
+        self.failure_count = 0
+        self.config = owner.config["apps"].setdefault(key, {"timeZone": "Asia/Shanghai"})
+        self.exe = Path(self.config.get("executable") or detect_executable(key))
+        frame = ttk.Frame(parent, padding=20)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=self.label + "时区", font=("Microsoft YaHei UI", 12, "bold")).pack(
+            anchor="w"
+        )
+        self.zone_label = tk.StringVar(
+            value=next(
+                (k for k, v in LABELS.items() if v == self.config.get("timeZone")),
+                next(iter(LABELS)),
+            )
+        )
+        self.combo = ttk.Combobox(
+            frame,
+            textvariable=self.zone_label,
+            values=list(LABELS),
+            state="readonly",
+            font=("Microsoft YaHei UI", 11),
+        )
+        self.combo.pack(fill="x", pady=(8, 16))
+        self.status = tk.StringVar(value="准备就绪：请先从系统托盘完全退出" + self.label + "。")
+        ttk.Label(frame, textvariable=self.status, wraplength=560).pack(anchor="w")
+        scope = (
+            "聊天主界面；小程序与内置网页不在覆盖范围。"
+            if key == "weixin"
+            else "聊天与日历界面；后台服务保持原设置。"
+        )
+        self.detail = tk.StringVar(value=scope)
+        ttk.Label(frame, textvariable=self.detail, wraplength=560, foreground="#555555").pack(
+            anchor="w", pady=(9, 0)
+        )
+        self.log = tk.Text(
+            frame,
+            height=6,
+            state="disabled",
+            font=("Microsoft YaHei UI", 9),
+            relief="solid",
+            borderwidth=1,
+        )
+        self.log.pack(fill="both", expand=True, pady=16)
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x")
+        self.start_button = ttk.Button(
+            buttons, text="应用时区并启动" + self.label, command=self.start
+        )
+        self.start_button.pack(side="left")
+        self.stop_button = ttk.Button(
+            buttons, text="恢复普通启动", command=self.stop, state="disabled"
+        )
+        self.stop_button.pack(side="right")
+
+    def append(self, text):
+        self.log.configure(state="normal")
+        self.log.insert("end", text + "\n")
+        self.log.see("end")
+        self.log.configure(state="disabled")
+
+    def emit(self, event):
+        self.owner.events.put((self.key, event))
+
+    def start(self):
+        if self.busy or self.controller:
+            return
+        if not self.exe.is_file() or self.exe.name.lower() not in PROFILES[self.key]["executables"]:
+            messagebox.showerror(
+                "找不到" + self.label,
+                f"请在 config.json 的 apps.{self.key}.executable 中填写完整路径。\n当前路径：{self.exe}",
+            )
+            return
+        running = [
+            p
+            for p in frida.get_local_device().enumerate_processes()
+            if p.name.lower() in PROFILES[self.key]["executables"]
+        ]
+        if running:
+            messagebox.showinfo(
+                "请先退出" + self.label,
+                "请先保存草稿、结束通话，并从系统托盘完全退出" + self.label + "，再点击启动。",
+            )
+            return
+        self.config["timeZone"] = LABELS[self.zone_label.get()]
+        try:
+            self.owner.save_config()
+        except OSError:
+            messagebox.showerror("配置保存失败", "请将整个文件夹放在有写入权限的位置再运行。")
+            return
+        self.busy = True
+        self.verified.clear()
+        self.failure_count = 0
+        self.start_button.configure(state="disabled")
+        self.combo.configure(state="disabled")
+        self.status.set("正在启动" + self.label + "并应用时区……")
+        threading.Thread(target=self.start_worker, daemon=True).start()
+
+    def start_worker(self):
+        controller = None
+        try:
+            controller = Controller(
+                zone_config(self.config["timeZone"]), self.emit, profile=self.key
+            )
+            controller.launch(str(self.exe))
+            self.emit(
+                {
+                    "event": "ready",
+                    "controller": controller,
+                    "handle": open_process_watch(controller.root_pid),
+                }
+            )
+        except Exception as error:
+            if controller:
+                controller.close()
+            self.emit({"event": "failed", "error": str(error)})
+
+    def stop(self, confirmed=False):
+        if self.busy or not self.controller:
+            return
+        if not confirmed and not messagebox.askyesno(
+            "恢复普通启动",
+            "这会退出并重新打开由本工具启动的"
+            + self.label
+            + "，以清除时区缓存。\n\n请先保存草稿并结束通话。现在恢复吗？",
+        ):
+            return
+        self.busy = True
+        self.stop_button.configure(state="disabled")
+        self.status.set("正在恢复普通启动……")
+        threading.Thread(target=self.stop_worker, daemon=True).start()
+
+    def stop_worker(self):
+        try:
+            # Retain a live process handle to prevent PID reuse. Terminate the
+            # confirmed owned process tree before detaching native callbacks.
+            if watched_process_is_running(self.process_handle):
+                result = subprocess.run(
+                    ["taskkill", "/PID", str(self.controller.root_pid), "/T", "/F"],
+                    capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                if result.returncode:
+                    raise RuntimeError(self.label + "未能完全退出，请从托盘手动退出并正常重启。")
+            self.controller.close()
+            close_process_watch(self.process_handle)
+            self.process_handle = None
+            self.controller = None
+            subprocess.Popen([str(self.exe)], creationflags=subprocess.CREATE_NO_WINDOW)
+            self.emit({"event": "stopped"})
+        except Exception as error:
+            self.emit({"event": "failed", "error": str(error)})
+
+    def handle(self, event):
+        kind = event["event"]
+        if kind == "probe":
+            self.verified.add(event["pid"])
+            self.append(f"进程 {event['pid']}：{event['timeZone']}")
+            self.detail.set(f"已验证 {len(self.verified)} 个界面进程。更换时区请先恢复普通启动。")
+        elif kind in ("child_error", "agent_error"):
+            self.failure_count += 1
+            self.status.set("部分界面进程未能应用时区，请恢复普通启动。")
+            self.append("未覆盖的界面进程：" + event["error"])
+        elif kind == "ready":
+            self.controller = event["controller"]
+            self.process_handle = event["handle"]
+            self.busy = False
+            self.stop_button.configure(state="normal")
+            if not self.failure_count:
+                self.status.set("已启动：" + self.config["timeZone"])
+        elif kind == "stopped":
+            self.busy = False
+            self.status.set("已恢复普通启动，Windows 系统时区未修改。")
+            self.start_button.configure(state="normal")
+            self.combo.configure(state="readonly")
+        elif kind == "failed":
+            self.busy = False
+            self.owner.closing = False
+            self.status.set("操作失败，请完全退出" + self.label + "后用原快捷方式启动。")
+            self.append(event["error"])
+            messagebox.showerror(self.label + "操作失败", event["error"])
+            if self.controller:
+                self.stop_button.configure(state="normal")
+            else:
+                self.start_button.configure(state="normal")
+                self.combo.configure(state="readonly")
+
+
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.events = queue.Queue()
+        self.closing = False
+        self.config_path = config_path()
+        try:
+            self.config = load_config(self.config_path)
+        except (OSError, ValueError) as error:
+            self.config = default_config()
+            messagebox.showwarning("配置读取失败", "已使用默认北京时间。\n" + str(error))
+        root.title("桌面应用独立时区 · 飞书 + 微信")
+        root.geometry("660x505")
+        root.minsize(620, 470)
+        outer = ttk.Frame(root, padding=20)
+        outer.pack(fill="both", expand=True)
+        ttk.Label(
+            outer, text="让每个应用使用自己的时区", font=("Microsoft YaHei UI", 17, "bold")
+        ).pack(anchor="w")
+        ttk.Label(outer, text="飞书和微信可分别设置。电脑系统时区保持原样。").pack(
+            anchor="w", pady=(8, 16)
+        )
+        notebook = ttk.Notebook(outer)
+        notebook.pack(fill="both", expand=True)
+        self.panels = {}
+        for key, profile in PROFILES.items():
+            tab = ttk.Frame(notebook)
+            notebook.add(tab, text="  " + profile["label"] + "  ")
+            self.panels[key] = AppPanel(self, key, tab)
+        # Keep Feishu first; focus Weixin for a Weixin-only invocation.
+        if "--weixin" in sys.argv:
+            notebook.select(1)
+        ttk.Label(
+            outer,
+            text="实验版 · 启用期间请保持本窗口打开 · 恢复普通模式需要重启对应应用",
+            foreground="#666666",
+        ).pack(anchor="w", pady=(12, 0))
+        root.protocol("WM_DELETE_WINDOW", self.close)
+        root.after(100, self.poll)
+
+    def save_config(self):
+        save_config(self.config_path, self.config)
+
+    def close(self):
+        if self.closing or any(p.busy for p in self.panels.values()):
+            return
+        active = [p for p in self.panels.values() if p.controller]
+        if not active:
+            self.root.destroy()
+            return
+        names = "、".join(p.label for p in active)
+        if not messagebox.askyesno(
+            "关闭并恢复普通启动",
+            "关闭工具会重启" + names + "，恢复原有时区。\n请先保存草稿并结束通话。现在继续吗？",
+        ):
+            return
+        self.closing = True
+        for panel in active:
+            panel.stop(confirmed=True)
+
+    def poll(self):
+        while not self.events.empty():
+            key, event = self.events.get()
+            self.panels[key].handle(event)
+        if self.closing and all(not p.busy and not p.controller for p in self.panels.values()):
+            self.root.destroy()
+            return
+        self.root.after(100, self.poll)
+
+
+def main():
+    if sys.platform != "win32":
+        raise SystemExit("Desktop Timezone requires Windows.")
+    root = tk.Tk()
+    App(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

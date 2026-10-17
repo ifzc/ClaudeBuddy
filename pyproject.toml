@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "desktop-timezone"
+version = "0.1.0"
+description = "Independent display time zones for Feishu and Weixin on Windows"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/*"]
+authors = [{ name = "ifzc" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = ["frida==17.24.0"]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.14,<1", "build>=1.2,<2"]
+build = ["pyinstaller==6.22.3"]
+
+[project.gui-scripts]
+desktop-timezone = "desktop_timezone.app:main"
+
+[project.scripts]
+desktop-timezone-probe = "desktop_timezone.native_timezone:main"
+
+[project.urls]
+Repository = "https://github.com/ifzc/desktop-timezone"
+Issues = "https://github.com/ifzc/desktop-timezone/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+desktop_timezone = ["agent.js"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

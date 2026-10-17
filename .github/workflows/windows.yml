@@ -1,0 +1,47 @@
+name: Windows checks and build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install project and tools
+        run: python -m pip install -e ".[dev,build]"
+      - name: Lint and formatting
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Native time zone integration tests
+        run: python tests/integration/selftest.py
+      - name: Build Python distributions
+        run: python -m build
+      - name: Build standalone Windows executable
+        shell: pwsh
+        run: ./scripts/build.ps1 -OutputDirectory build/windows
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopTimezone-windows-x64
+          path: build/windows/
+      - name: Upload Python distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-timezone-python
+          path: dist/*

@@ -1,0 +1,10 @@
+{
+  "apps": {
+    "feishu": {
+      "timeZone": "Asia/Shanghai"
+    },
+    "weixin": {
+      "timeZone": "Asia/Shanghai"
+    }
+  }
+}
