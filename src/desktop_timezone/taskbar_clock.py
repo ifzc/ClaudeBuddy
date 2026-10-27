@@ -60,6 +60,9 @@ class TaskbarLocator:
             self.automation.CreatePropertyCondition(30012, "SystemTray.DateTimeIcon"),
             self.automation.CreatePropertyCondition(30012, "SystemTray.OmniButton"),
         ]
+        self.time_text_condition = self.automation.CreatePropertyCondition(
+            30011, "TimeInnerTextBlock"
+        )
         self.user = ctypes.WinDLL("user32", use_last_error=True)
         self.user.FindWindowW.argtypes = [w.LPCWSTR, w.LPCWSTR]
         self.user.FindWindowW.restype = w.HWND
@@ -70,41 +73,77 @@ class TaskbarLocator:
         self.window = None
         self.element = None
 
+    def _find_clock(self, window):
+        root = self.automation.ElementFromHandle(window)
+        for condition in self.conditions:
+            candidate = root.FindFirst(4, condition)
+            if candidate:
+                return candidate
+        # Compact/current taskbars expose a generic SystemTrayIcon button.
+        # Identify it by its clock-only text child, never by screen position.
+        text = root.FindFirst(4, self.time_text_condition)
+        if text:
+            return self._clock_button(text)
+        # Some XAML taskbars omit the decorative clock text from FindFirst's
+        # view. Walk raw children with a strict bound to find that same marker.
+        walker = self.automation.RawViewWalker
+        pending = [(root, 0)]
+        visited = 0
+        while pending and visited < 256:
+            element, depth = pending.pop()
+            visited += 1
+            if element.CurrentAutomationId == "TimeInnerTextBlock":
+                return self._clock_button(element)
+            if depth >= 10:
+                continue
+            child = walker.GetFirstChildElement(element)
+            while child and len(pending) + visited < 256:
+                pending.append((child, depth + 1))
+                child = walker.GetNextSiblingElement(child)
+        return None
+
+    def _clock_button(self, text):
+        parent = self.automation.RawViewWalker.GetParentElement(text)
+        if (
+            parent
+            and parent.CurrentControlType == 50000
+            and parent.CurrentAutomationId == "SystemTrayIcon"
+            and parent.CurrentClassName in ("SystemTray.AccentButton", "SystemTray.NormalButton")
+        ):
+            return parent
+        return None
+
     def locate(self):
         window = self.user.FindWindowW("Shell_TrayWnd", None)
         if not window or not self.user.IsWindowVisible(window):
             self.element = None
             return None
-        if window != self.window or not self.element:
+        if window != self.window:
             self.window, self.element = window, None
-            root = self.automation.ElementFromHandle(window)
-            for condition in self.conditions:
-                candidate = root.FindFirst(4, condition)
-                if candidate:
-                    self.element = candidate
-                    break
-        if not self.element:
-            return None
-        try:
-            if self.element.CurrentIsOffscreen:
-                return None
-            rect = self.element.CurrentBoundingRectangle
-            bar = w.RECT()
-            if not self.user.GetWindowRect(window, ctypes.byref(bar)):
-                return None
-            if (
-                rect.right - rect.left < 24
-                or rect.bottom - rect.top < 20
-                or rect.left < bar.left
-                or rect.right > bar.right
-                or rect.top < bar.top
-                or rect.bottom > bar.bottom
-            ):
-                return None
-            return rect.left, rect.top, rect.right, rect.bottom
-        except Exception:
+        for _ in range(2):
+            try:
+                if not self.element:
+                    self.element = self._find_clock(window)
+                if not self.element:
+                    return None
+                rect = self.element.CurrentBoundingRectangle
+                bar = w.RECT()
+                if (
+                    not self.element.CurrentIsOffscreen
+                    and self.user.GetWindowRect(window, ctypes.byref(bar))
+                    and rect.right - rect.left >= 24
+                    and rect.bottom - rect.top >= 20
+                    and rect.left >= bar.left
+                    and rect.right <= bar.right
+                    and rect.top >= bar.top
+                    and rect.bottom <= bar.bottom
+                ):
+                    return rect.left, rect.top, rect.right, rect.bottom
+            except Exception:
+                pass
+            # Explorer can replace the element without replacing Shell_TrayWnd.
             self.element = None
-            return None
+        return None
 
 
 PROCEDURE = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, w.HWND, w.UINT, w.WPARAM, w.LPARAM)
@@ -149,6 +188,8 @@ class TaskbarClock:
         self.text = ("", "")
         self.rectangle = None
         self.ready = False
+        self.waiting = False
+        self.missing_since = None
 
     def start(self):
         self.thread = threading.Thread(target=self._run, daemon=True, name="taskbar-clock")
@@ -325,10 +366,14 @@ class TaskbarClock:
             )
             self.user.InvalidateRect(self.window, None, False)
         rect = self.locator.locate()
-        if not rect and not self.ready and time.monotonic() - self.started > 10:
-            raise RuntimeError(
-                "未识别到主屏任务栏时钟。请显示任务栏后重试；此 Windows 布局可能尚不支持。"
-            )
+        if rect:
+            self.missing_since = None
+        else:
+            if self.missing_since is None:
+                self.missing_since = time.monotonic()
+            if not self.waiting and time.monotonic() - self.missing_since >= 10:
+                self.waiting = True
+                self.report({"event": "waiting"})
         foreground = self.user.GetForegroundWindow()
         kind = ctypes.create_unicode_buffer(64)
         self.user.GetClassNameW(foreground, kind, len(kind))
@@ -357,8 +402,9 @@ class TaskbarClock:
             ):
                 raise ctypes.WinError(ctypes.get_last_error())
             self.visible, self.rectangle = True, (left, top, right, bottom)
-            if not self.ready:
+            if not self.ready or self.waiting:
                 self.ready = True
+                self.waiting = False
                 self.report({"event": "ready"})
         else:
             self.user.ShowWindow(self.window, 0)
