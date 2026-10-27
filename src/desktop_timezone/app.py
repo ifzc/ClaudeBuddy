@@ -1,5 +1,4 @@
 import queue
-import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -7,16 +6,8 @@ import webbrowser
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-import frida
-
 from .configuration import config_path, default_config, load_config, save_config
-from .native_timezone import (
-    Controller,
-    close_process_watch,
-    open_process_watch,
-    watched_process_is_running,
-    zone_config,
-)
+from .launching import ApplicationLauncher
 from .profiles import PROFILES, detect_executable
 from .taskbar_clock import TaskbarClock
 from .tray import TrayIcon
@@ -38,8 +29,7 @@ class AppPanel:
     def __init__(self, owner, key, parent):
         self.owner, self.key = owner, key
         self.label = PROFILES[key]["label"]
-        self.controller = None
-        self.process_handle = None
+        self.launcher = ApplicationLauncher(key, self.emit)
         self.busy = False
         self.verified = set()
         self.failure_count = 0
@@ -64,7 +54,7 @@ class AppPanel:
             font=("Microsoft YaHei UI", 11),
         )
         self.combo.pack(fill="x", pady=(8, 16))
-        self.status = tk.StringVar(value="准备就绪：请先从系统托盘完全退出" + self.label + "。")
+        self.status = tk.StringVar(value="准备就绪：可随时点击启动" + self.label + "。")
         ttk.Label(frame, textvariable=self.status, wraplength=560).pack(anchor="w")
         scope = (
             "聊天主界面；小程序与内置网页不在覆盖范围。"
@@ -86,14 +76,12 @@ class AppPanel:
         self.log.pack(fill="both", expand=True, pady=16)
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x")
-        self.start_button = ttk.Button(
-            buttons, text="应用时区并启动" + self.label, command=self.start
-        )
+        self.start_button = ttk.Button(buttons, text="启动" + self.label, command=self.start)
         self.start_button.pack(side="left")
-        self.stop_button = ttk.Button(
-            buttons, text="恢复普通启动", command=self.stop, state="disabled"
-        )
-        self.stop_button.pack(side="right")
+
+    @property
+    def controller(self):
+        return self.launcher.controller
 
     def append(self, text):
         self.log.configure(state="normal")
@@ -105,23 +93,12 @@ class AppPanel:
         self.owner.events.put((self.key, event))
 
     def start(self):
-        if self.busy or self.controller:
+        if self.busy:
             return
         if not self.exe.is_file() or self.exe.name.lower() not in PROFILES[self.key]["executables"]:
             messagebox.showerror(
                 "找不到" + self.label,
                 f"请在 config.json 的 apps.{self.key}.executable 中填写完整路径。\n当前路径：{self.exe}",
-            )
-            return
-        running = [
-            p
-            for p in frida.get_local_device().enumerate_processes()
-            if p.name.lower() in PROFILES[self.key]["executables"]
-        ]
-        if running:
-            messagebox.showinfo(
-                "请先退出" + self.label,
-                "请先保存草稿、结束通话，并从系统托盘完全退出" + self.label + "，再点击启动。",
             )
             return
         self.config["timeZone"] = LABELS[self.zone_label.get()]
@@ -131,99 +108,61 @@ class AppPanel:
             messagebox.showerror("配置保存失败", "请将整个文件夹放在有写入权限的位置再运行。")
             return
         self.busy = True
-        self.verified.clear()
-        self.failure_count = 0
-        self.start_button.configure(state="disabled")
+        if not self.launcher.is_running():
+            self.verified.clear()
+            self.failure_count = 0
         self.combo.configure(state="disabled")
-        self.status.set("正在启动" + self.label + "并应用时区……")
+        self.status.set("正在打开" + self.label + "……")
         threading.Thread(target=self.start_worker, daemon=True).start()
 
     def start_worker(self):
-        controller = None
         try:
-            controller = Controller(
-                zone_config(self.config["timeZone"]), self.emit, profile=self.key
-            )
-            controller.launch(str(self.exe))
-            self.emit(
-                {
-                    "event": "ready",
-                    "controller": controller,
-                    "handle": open_process_watch(controller.root_pid),
-                }
-            )
+            result = self.launcher.start(str(self.exe), self.config["timeZone"])
+            self.emit({"event": "ready", "result": result})
         except Exception as error:
-            if controller:
-                controller.close()
             self.emit({"event": "failed", "error": str(error)})
 
-    def stop(self, confirmed=False):
-        if self.busy or not self.controller:
-            return
-        if not confirmed and not messagebox.askyesno(
-            "恢复普通启动",
-            "这会退出并重新打开由本工具启动的"
-            + self.label
-            + "，以清除时区缓存。\n\n请先保存草稿并结束通话。现在恢复吗？",
-        ):
+    def check_process(self):
+        if self.busy or not self.launcher.process_handle or self.launcher.is_running():
             return
         self.busy = True
-        self.stop_button.configure(state="disabled")
-        self.status.set("正在恢复普通启动……")
-        threading.Thread(target=self.stop_worker, daemon=True).start()
 
-    def stop_worker(self):
-        try:
-            # Retain a live process handle to prevent PID reuse. Terminate the
-            # confirmed owned process tree before detaching native callbacks.
-            if watched_process_is_running(self.process_handle):
-                result = subprocess.run(
-                    ["taskkill", "/PID", str(self.controller.root_pid), "/T", "/F"],
-                    capture_output=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-                if result.returncode:
-                    raise RuntimeError(self.label + "未能完全退出，请从托盘手动退出并正常重启。")
-            self.controller.close()
-            close_process_watch(self.process_handle)
-            self.process_handle = None
-            self.controller = None
-            subprocess.Popen([str(self.exe)], creationflags=subprocess.CREATE_NO_WINDOW)
-            self.emit({"event": "stopped"})
-        except Exception as error:
-            self.emit({"event": "failed", "error": str(error)})
+        def release():
+            self.launcher.release()
+            self.emit({"event": "exited"})
+
+        threading.Thread(target=release, daemon=True).start()
 
     def handle(self, event):
         kind = event["event"]
         if kind == "probe":
             self.verified.add(event["pid"])
             self.append(f"进程 {event['pid']}：{event['timeZone']}")
-            self.detail.set(f"已验证 {len(self.verified)} 个界面进程。更换时区请先恢复普通启动。")
+            self.detail.set(f"已验证 {len(self.verified)} 个界面进程。可重复点击启动以打开窗口。")
         elif kind in ("child_error", "agent_error"):
             self.failure_count += 1
-            self.status.set("部分界面进程未能应用时区，请恢复普通启动。")
+            self.status.set("部分界面进程未能应用时区，可退出应用后再次启动。")
             self.append("未覆盖的界面进程：" + event["error"])
         elif kind == "ready":
-            self.controller = event["controller"]
-            self.process_handle = event["handle"]
             self.busy = False
-            self.stop_button.configure(state="normal")
-            if not self.failure_count:
-                self.status.set("已启动：" + self.config["timeZone"])
-        elif kind == "stopped":
+            if self.controller:
+                if not self.failure_count:
+                    self.status.set("已启动：" + self.launcher.zone + " · 可再次点击打开窗口")
+            else:
+                self.combo.configure(state="readonly")
+                self.status.set("已打开正在运行的" + self.label + "，沿用当前会话时区。")
+                self.detail.set("退出应用后再次点击启动，会应用上方选择的时区。")
+        elif kind == "exited":
             self.busy = False
-            self.status.set("已恢复普通启动，Windows 系统时区未修改。")
-            self.start_button.configure(state="normal")
+            self.verified.clear()
+            self.status.set(self.label + "已退出，可再次点击启动。")
             self.combo.configure(state="readonly")
         elif kind == "failed":
             self.busy = False
-            self.status.set("操作失败，请完全退出" + self.label + "后用原快捷方式启动。")
+            self.status.set("启动失败，可再次点击重试。")
             self.append(event["error"])
             messagebox.showerror(self.label + "操作失败", event["error"])
-            if self.controller:
-                self.stop_button.configure(state="normal")
-            else:
-                self.start_button.configure(state="normal")
+            if not self.controller:
                 self.combo.configure(state="readonly")
 
 
@@ -311,7 +250,11 @@ class TaskbarPanel:
             return
         if self.controller:
             self.controller.zone = self.config["timeZone"]
-            self.status.set("已启用：" + self.config["timeZone"] + " · Windows 系统时区未修改")
+            self.status.set(
+                "等待任务栏时钟恢复显示，将自动重新定位。"
+                if self.controller.waiting
+                else "已启用：" + self.config["timeZone"] + " · Windows 系统时区未修改"
+            )
             return
         self.failed = False
         self.busy = True
@@ -344,6 +287,10 @@ class TaskbarPanel:
         elif event["event"] == "failed":
             self.failed = True
             self.status.set("启用失败：" + event["error"])
+        elif event["event"] == "waiting":
+            self.busy = False
+            self.start_button.configure(state="normal")
+            self.status.set("等待任务栏时钟恢复显示，将自动重新定位。")
         elif event["event"] == "stopped":
             self.controller = None
             self.busy = False
@@ -421,7 +368,7 @@ class App:
             notebook.select(2)
         ttk.Label(
             outer,
-            text="实验版 · 关闭窗口后在托盘继续运行 · 恢复普通模式请手动操作",
+            text="实验版 · 关闭窗口后在托盘继续运行 · 应用退出后可再次点击启动",
             foreground="#666666",
         ).pack(anchor="w", pady=(12, 0))
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -445,6 +392,9 @@ class App:
                 self.root.withdraw()
             return
         self.tray.close()
+        for panel in self.panels.values():
+            if isinstance(panel, AppPanel):
+                panel.launcher.release()
         self.root.destroy()
 
     def show(self):
@@ -458,7 +408,7 @@ class App:
         self.tray_menu.add_separator()
         active = any(p.controller or p.busy for p in self.panels.values())
         self.tray_menu.add_command(
-            label="维护时区中 · 退出前请手动恢复" if active else "退出工具",
+            label="维护时区中 · 应用退出后可退出工具" if active else "退出工具",
             command=self.close,
             state="disabled" if active else "normal",
         )
@@ -476,6 +426,9 @@ class App:
                     self.show_tray_menu()
             else:
                 self.panels[key].handle(event)
+        for panel in self.panels.values():
+            if isinstance(panel, AppPanel):
+                panel.check_process()
         self.root.after(100, self.poll)
 
 

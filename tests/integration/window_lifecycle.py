@@ -40,8 +40,8 @@ def main():
             app = App(window)
             window.update()
             controller.attach(process.pid, gate_children=False)
-            app.panels["weixin"].controller = controller
-            app.panels["weixin"].process_handle = watch
+            app.panels["weixin"].launcher.controller = controller
+            app.panels["weixin"].launcher.process_handle = watch
 
             # No confirmation or application restart may happen on window close.
             with patch("desktop_timezone.app.messagebox.askyesno", side_effect=AssertionError):
@@ -73,8 +73,8 @@ def main():
             assert json.loads(process.stdout.readline())["key"] == "China Standard Time"
 
             controller.close()
-            app.panels["weixin"].controller = None
-            app.panels["weixin"].process_handle = None
+            app.panels["weixin"].launcher.controller = None
+            app.panels["weixin"].launcher.process_handle = None
             app.close()
             window = None
             assert not app.tray.visible

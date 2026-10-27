@@ -13,7 +13,7 @@ from .profiles import PROFILES, ZONES, child_needs_timezone, detect_executable
 
 
 def process_command_line(pid):
-    """Read only the command line of a child already gated by our session."""
+    """Read a selected application process's command line without logging it."""
 
     class UnicodeString(ctypes.Structure):
         _fields_ = [("length", w.USHORT), ("maximumLength", w.USHORT), ("buffer", ctypes.c_void_p)]
